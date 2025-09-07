@@ -22,7 +22,7 @@ permissions:
 #
 jobs:
   containers:
-    name: ${{ matrix.container }} Container
+    name: ${{ matrix.container }} Container - ${{ matrix.runner }}
     strategy:
       matrix:
         container: ["proj"]
@@ -45,11 +45,9 @@ jobs:
           echo "are we pushing packages" ${{ env.PUSH_PACKAGES }}
           echo "event_name" ${{ github.event_name }}
           echo "ref" ${{ github.ref }}
-      - name: Setup Docker Buildx
-        id: buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Docker
+        uses: docker/setup-docker-action@v4
         with:
-          version: latest
           daemon-config: |
             {
               "debug": false,
@@ -57,6 +55,12 @@ jobs:
                 "containerd-snapshotter": true  
               }
             }
+      - name: Setup Docker Buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          version: latest
+
       - name: Login to GitHub Container Registry
         if: env.PUSH_PACKAGES == 'true'
         uses: docker/login-action@v3
@@ -102,9 +106,9 @@ jobs:
           echo "ARCH=$ARCH" >> $GITHUB_OUTPUT
       - name: Build docs image
         uses: docker/build-push-action@v6
-        if: ${{matrix.container}} == 'proj-docs'
+        if: matrix.container == 'proj-docs'
         with:
-          push: env.PUSH_PACKAGES == 'true'
+          push: ${{ env.PUSH_PACKAGES == 'true' }}
           builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ${{ matrix.dockerfile }}
@@ -124,9 +128,9 @@ jobs:
             org.opencontainers.image.created=${{ steps.prep.outputs.BUILD_DATE }}
       - name: Build image
         uses: docker/build-push-action@v6
-        if: ${{ matrix.container }} == 'proj'
+        if: matrix.container == 'proj'
         with:
-          push: env.PUSH_PACKAGES == 'true'
+          push: ${{ env.PUSH_PACKAGES == 'true' }}
           builder: ${{ steps.buildx.outputs.name }}
           context: .
           file: ${{ matrix.dockerfile }}
@@ -145,7 +149,7 @@ jobs:
             org.opencontainers.image.version=${{ steps.prep.outputs.VERSION }}
             org.opencontainers.image.created=${{ steps.prep.outputs.BUILD_DATE }}
       - name: Generate artifact attestation
-        if: ${{ env.PUSH_PACKAGES == 'true' }} && ${{matrix.container}} == 'proj'
+        if: ${{ env.PUSH_PACKAGES == 'true' && matrix.container  == 'proj' }}
         uses: actions/attest-build-provenance@v3
         with:
           subject-name: ghcr.io/osgeo/${{ matrix.container }}
